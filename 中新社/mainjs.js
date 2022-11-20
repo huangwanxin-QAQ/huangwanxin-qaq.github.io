@@ -1,4 +1,4 @@
-//34
+﻿//34
 $(function () {
     var qcloud = {};
     $('[_t_nav]').hover(function () {
