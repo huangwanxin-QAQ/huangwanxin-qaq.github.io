@@ -1,268 +1,95 @@
-<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN">
-<HTML>
+<!DOCTYPE html>
+<html lang="zh-CN">
  
-<HEAD>
-  <TITLE> 羡慕,因为是希望的模样 </TITLE>
-  <META NAME="Generator" CONTENT="EditPlus">
-  <META NAME="Author" CONTENT="">
-  <META NAME="Keywords" CONTENT="">
-  <META NAME="Description" CONTENT="">
-  <style>
-    html,
-    body {
-      height: 100%;
-      padding: 0;
-      margin: 0;
-      background: #000;
-    }
- 
-    canvas {
-      position: absolute;
-      width: 100%;
-      height: 100%;
-    }
-  </style>
-</HEAD>
- 
-<BODY>
-  <canvas id="pinkboard"></canvas>
-  <script>
-    /*
-   * Settings
-   */
-    var settings = {
-      particles: {
-        length: 500, // maximum amount of particles
-        duration: 2, // particle duration in sec
-        velocity: 100, // particle velocity in pixels/sec
-        effect: -0.75, // play with this for a nice effect
-        size: 30, // particle size in pixels
-      },
-    };
- 
-    /*
-     * RequestAnimationFrame polyfill by Erik M&#246;ller
-     */
-    (function () { var b = 0; var c = ["ms", "moz", "webkit", "o"]; for (var a = 0; a < c.length && !window.requestAnimationFrame; ++a) { window.requestAnimationFrame = window[c[a] + "RequestAnimationFrame"]; window.cancelAnimationFrame = window[c[a] + "CancelAnimationFrame"] || window[c[a] + "CancelRequestAnimationFrame"] } if (!window.requestAnimationFrame) { window.requestAnimationFrame = function (h, e) { var d = new Date().getTime(); var f = Math.max(0, 16 - (d - b)); var g = window.setTimeout(function () { h(d + f) }, f); b = d + f; return g } } if (!window.cancelAnimationFrame) { window.cancelAnimationFrame = function (d) { clearTimeout(d) } } }());
- 
-    /*
-     * Point class
-     */
-    var Point = (function () {
-      function Point(x, y) {
-        this.x = (typeof x !== 'undefined') ? x : 0;
-        this.y = (typeof y !== 'undefined') ? y : 0;
-      }
-      Point.prototype.clone = function () {
-        return new Point(this.x, this.y);
-      };
-      Point.prototype.length = function (length) {
-        if (typeof length == 'undefined')
-          return Math.sqrt(this.x * this.x + this.y * this.y);
-        this.normalize();
-        this.x *= length;
-        this.y *= length;
-        return this;
-      };
-      Point.prototype.normalize = function () {
-        var length = this.length();
-        this.x /= length;
-        this.y /= length;
-        return this;
-      };
-      return Point;
-    })();
- 
-    /*
-     * Particle class
-     */
-    var Particle = (function () {
-      function Particle() {
-        this.position = new Point();
-        this.velocity = new Point();
-        this.acceleration = new Point();
-        this.age = 0;
-      }
-      Particle.prototype.initialize = function (x, y, dx, dy) {
-        this.position.x = x;
-        this.position.y = y;
-        this.velocity.x = dx;
-        this.velocity.y = dy;
-        this.acceleration.x = dx * settings.particles.effect;
-        this.acceleration.y = dy * settings.particles.effect;
-        this.age = 0;
-      };
-      Particle.prototype.update = function (deltaTime) {
-        this.position.x += this.velocity.x * deltaTime;
-        this.position.y += this.velocity.y * deltaTime;
-        this.velocity.x += this.acceleration.x * deltaTime;
-        this.velocity.y += this.acceleration.y * deltaTime;
-        this.age += deltaTime;
-      };
-      Particle.prototype.draw = function (context, image) {
-        function ease(t) {
-          return (--t) * t * t + 1;
+<head>
+    <meta charset="UTF-8">
+    <title>汉字查询工具</title>
+    <style>
+        .result {
+            margin-top: 20px;
         }
-        var size = image.width * ease(this.age / settings.particles.duration);
-        context.globalAlpha = 1 - this.age / settings.particles.duration;
-        context.drawImage(image, this.position.x - size / 2, this.position.y - size / 2, size, size);
-      };
-      return Particle;
-    })();
+    </style>
  
-    /*
-     * ParticlePool class
-     */
-    var ParticlePool = (function () {
-      var particles,
-        firstActive = 0,
-        firstFree = 0,
-        duration = settings.particles.duration;
+    <script src="https://fastly.jsdelivr.net/npm/cnchar/cnchar.min.js"></script>
+    <script src="https://fastly.jsdelivr.net/npm/cnchar-order/cnchar.order.min.js"></script>
+    <script src="https://fastly.jsdelivr.net/npm/cnchar-draw/cnchar.draw.min.js"></script>
  
-      function ParticlePool(length) {
-        // create and populate particle pool
-        particles = new Array(length);
-        for (var i = 0; i < particles.length; i++)
-          particles[i] = new Particle();
-      }
-      ParticlePool.prototype.add = function (x, y, dx, dy) {
-        particles[firstFree].initialize(x, y, dx, dy);
+</head>
  
-        // handle circular queue
-        firstFree++;
-        if (firstFree == particles.length) firstFree = 0;
-        if (firstActive == firstFree) firstActive++;
-        if (firstActive == particles.length) firstActive = 0;
-      };
-      ParticlePool.prototype.update = function (deltaTime) {
-        var i;
+<body>
+    <h1>汉字查询工具</h1>
+    <input type="text" id="chinese-input" placeholder="请输入汉字" oninput="handleInput()">
+    <button id="query-btn">查询</button>
  
-        // update active particles
-        if (firstActive < firstFree) {
-          for (i = firstActive; i < firstFree; i++)
-            particles[i].update(deltaTime);
-        }
-        if (firstFree < firstActive) {
-          for (i = firstActive; i < particles.length; i++)
-            particles[i].update(deltaTime);
-          for (i = 0; i < firstFree; i++)
-            particles[i].update(deltaTime);
+    <div class="result" id="pinyin-result">拼音:</div>
+    <div class="result" id="stroke-count-result">笔画数:</div>
+    <div class="result" id="stroke-order-result">笔画顺序:</div>
+    <div class="result">笔画:</div>
+    <div id='drawStroke'></div>
+    <div class="result">笔画-动画:</div>
+    <div id='drawAnimation'></div>
+    <div class="result">笔画-正常:</div>
+    <div id='drawNormal'></div>
+    <div class="result">练一练:</div>
+    <div id='drawTest'></div>
+    <script>
+        // 使用 cnchar 库查询汉字信息
+        function queryChineseInfo(chineseChar) {
+            const pinyin = chineseChar.spell(); // 获取拼音
+            const strokeCount = chineseChar.stroke(); // 获取笔画数
+            const strokeOrder = cnchar.stroke(chineseChar, 'order', 'shape'); // 获取笔画顺序
+ 
+ 
+ 
+            document.getElementById('pinyin-result').innerText = '拼音: ' + pinyin;
+            document.getElementById('stroke-count-result').innerText = '笔画数: ' + strokeCount;
+            document.getElementById('stroke-order-result').innerText = '笔画顺序: ' + strokeOrder;
+            // 绘制汉字的笔顺动画
+            cnchar.draw(chineseChar, {
+                el: '#drawStroke',
+                type: cnchar.draw.TYPE.STROKE,
+                animation: {
+                    loopAnimate: true
+                }
+            });
+            // 绘制汉字的笔顺动画
+            cnchar.draw(chineseChar, {
+                el: '#drawAnimation',
+                type: cnchar.draw.TYPE.ANIMATION,
+                animation: {
+                    loopAnimate: true
+                }
+            });
+            // 绘制汉字的笔顺正常
+            cnchar.draw(chineseChar, {
+                el: '#drawNormal'
+            })
+            // 绘制汉字的测试图案
+            cnchar.draw(chineseChar, {
+                el: '#drawTest',
+                type: cnchar.draw.TYPE.TEST
+            });
+ 
         }
  
-        // remove inactive particles
-        while (particles[firstActive].age >= duration && firstActive != firstFree) {
-          firstActive++;
-          if (firstActive == particles.length) firstActive = 0;
+        // 监听查询按钮的点击事件
+        document.getElementById('query-btn').addEventListener('click', function () {
+            const inputField = document.getElementById('chinese-input');
+            const chineseChar = inputField.value;
+            if (chineseChar) {
+                queryChineseInfo(chineseChar);
+            } else {
+                alert('请输入汉字进行查询');
+            }
+        });
+ 
+        // 监听输入框的输入事件，用于清除之前的查询结果
+        function handleInput() {
+            document.getElementById('pinyin-result').innerText = '拼音:';
+            document.getElementById('stroke-count-result').innerText = '笔画数:';
+            document.getElementById('stroke-order-result').innerText = '笔画顺序:';
         }
+    </script>
+</body>
  
- 
-      };
-      ParticlePool.prototype.draw = function (context, image) {
-        // draw active particles
-        if (firstActive < firstFree) {
-          for (i = firstActive; i < firstFree; i++)
-            particles[i].draw(context, image);
-        }
-        if (firstFree < firstActive) {
-          for (i = firstActive; i < particles.length; i++)
-            particles[i].draw(context, image);
-          for (i = 0; i < firstFree; i++)
-            particles[i].draw(context, image);
-        }
-      };
-      return ParticlePool;
-    })();
- 
-    /*
-     * Putting it all together
-     */
-    (function (canvas) {
-      var context = canvas.getContext('2d'),
-        particles = new ParticlePool(settings.particles.length),
-        particleRate = settings.particles.length / settings.particles.duration, // particles/sec
-        time;
- 
-      // get point on heart with -PI <= t <= PI
-      function pointOnHeart(t) {
-        return new Point(
-          160 * Math.pow(Math.sin(t), 3),
-          130 * Math.cos(t) - 50 * Math.cos(2 * t) - 20 * Math.cos(3 * t) - 10 * Math.cos(4 * t) + 25
-        );
-      }
- 
-      // creating the particle image using a dummy canvas
-      var image = (function () {
-        var canvas = document.createElement('canvas'),
-          context = canvas.getContext('2d');
-        canvas.width = settings.particles.size;
-        canvas.height = settings.particles.size;
-        // helper function to create the path
-        function to(t) {
-          var point = pointOnHeart(t);
-          point.x = settings.particles.size / 2 + point.x * settings.particles.size / 350;
-          point.y = settings.particles.size / 2 - point.y * settings.particles.size / 350;
-          return point;
-        }
-        // create the path
-        context.beginPath();
-        var t = -Math.PI;
-        var point = to(t);
-        context.moveTo(point.x, point.y);
-        while (t < Math.PI) {
-          t += 0.01; // baby steps!
-          point = to(t);
-          context.lineTo(point.x, point.y);
-        }
-        context.closePath();
-        // create the fill
-        context.fillStyle = '#ea80b0';
-        context.fill();
-        // create the image
-        var image = new Image();
-        image.src = canvas.toDataURL();
-        return image;
-      })();
- 
-      // render that thing!
-      function render() {
-        // next animation frame
-        requestAnimationFrame(render);
- 
-        // update time
-        var newTime = new Date().getTime() / 1000,
-          deltaTime = newTime - (time || newTime);
-        time = newTime;
- 
-        // clear canvas
-        context.clearRect(0, 0, canvas.width, canvas.height);
- 
-        // create new particles
-        var amount = particleRate * deltaTime;
-        for (var i = 0; i < amount; i++) {
-          var pos = pointOnHeart(Math.PI - 2 * Math.PI * Math.random());
-          var dir = pos.clone().length(settings.particles.velocity);
-          particles.add(canvas.width / 2 + pos.x, canvas.height / 2 - pos.y, dir.x, -dir.y);
-        }
- 
-        // update and draw particles
-        particles.update(deltaTime);
-        particles.draw(context, image);
-      }
- 
-      // handle (re-)sizing of the canvas
-      function onResize() {
-        canvas.width = canvas.clientWidth;
-        canvas.height = canvas.clientHeight;
-      }
-      window.onresize = onResize;
- 
-      // delay rendering bootstrap
-      setTimeout(function () {
-        onResize();
-        render();
-      }, 10);
-    })(document.getElementById('pinkboard'));
-  </script>
-</BODY>
- 
-</HTML>
+</html>
